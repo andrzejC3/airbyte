@@ -156,7 +156,7 @@ class SourceAmazonAMP(Source):
                     "properties": {
                         "metric_name": {"type": ["string", "null"]}
                     },
-                    "additionalProperties": False,
+                    "additionalProperties": True,
                 },
                 supported_sync_modes=[SyncMode.full_refresh]
             ),
