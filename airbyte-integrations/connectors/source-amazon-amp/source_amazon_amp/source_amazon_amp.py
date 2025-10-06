@@ -1,21 +1,26 @@
-import requests
+# Copyright (c) 2025 Airbyte, Inc., all rights reserved.
+
 import datetime
 import hashlib
 import hmac
-from airbyte_cdk.sources import Source
+from typing import Iterable
+
+import requests
+
+from airbyte_cdk.logger import init_logger
 from airbyte_cdk.models import (
     AirbyteCatalog,
-    AirbyteStream,
     AirbyteConnectionStatus,
-    Status,
-    ConnectorSpecification,
     AirbyteMessage,
     AirbyteRecordMessage,
-    Type,
+    AirbyteStream,
+    ConnectorSpecification,
+    Status,
     SyncMode,
+    Type
 )
-from airbyte_cdk.logger import init_logger
-from typing import Iterable
+from airbyte_cdk.sources import Source
+
 
 class SigV4Authenticator:
     def __init__(self, access_key, secret_key, region, service="aps"):
@@ -48,45 +53,39 @@ class SigV4Authenticator:
         signed_headers = "host;x-amz-date"
 
         canonical_request = (
-            method + "\n" +
-            canonical_uri + "\n" +
-            canonical_querystring + "\n" +
-            canonical_headers + "\n" +
-            signed_headers + "\n" +
-            payload_hash
+            method
+            + "\n"
+            + canonical_uri
+            + "\n"
+            + canonical_querystring
+            + "\n"
+            + canonical_headers
+            + "\n"
+            + signed_headers
+            + "\n"
+            + payload_hash
         )
 
         algorithm = "AWS4-HMAC-SHA256"
         credential_scope = f"{date_stamp}/{self.region}/{self.service}/aws4_request"
         string_to_sign = (
-            algorithm + "\n" +
-            amz_date + "\n" +
-            credential_scope + "\n" +
-            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest()
+            algorithm + "\n" + amz_date + "\n" + credential_scope + "\n" + hashlib.sha256(canonical_request.encode("utf-8")).hexdigest()
         )
 
         signing_key = self.get_signature_key(date_stamp)
         signature = hmac.new(signing_key, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
         authorization_header = (
-            f"{algorithm} Credential={self.access_key}/{credential_scope}, "
-            f"SignedHeaders={signed_headers}, Signature={signature}"
+            f"{algorithm} Credential={self.access_key}/{credential_scope}, " f"SignedHeaders={signed_headers}, Signature={signature}"
         )
 
-        headers.update({
-            "x-amz-date": amz_date,
-            "Authorization": authorization_header,
-            "host": parsed_url.netloc
-        })
+        headers.update({"x-amz-date": amz_date, "Authorization": authorization_header, "host": parsed_url.netloc})
+
 
 class BaseAmazonAMPStream:
     def __init__(self, config: dict):
         self.config = config
-        self.auth = SigV4Authenticator(
-            access_key=config["access_key"],
-            secret_key=config["secret_key"],
-            region=config["region"]
-        )
+        self.auth = SigV4Authenticator(access_key=config["access_key"], secret_key=config["secret_key"], region=config["region"])
         self.base_url = f"https://aps-workspaces.{config['region']}.amazonaws.com/workspaces/{config['workspace_id']}"
 
     def request(self, path: str) -> dict:
@@ -100,11 +99,13 @@ class BaseAmazonAMPStream:
         response.raise_for_status()
         return response.json()
 
+
 class MetricNamesStream(BaseAmazonAMPStream):
     def read_records(self) -> Iterable[dict]:
         data = self.request("/api/v1/label/__name__/values")
         for metric in data.get("data", []):
             yield {"metric_name": metric}
+
 
 class RulesStream(BaseAmazonAMPStream):
     def read_records(self) -> Iterable[dict]:
@@ -134,6 +135,7 @@ class RulesStream(BaseAmazonAMPStream):
                     "alerts": rule.get("alerts", []),
                 }
 
+
 class SourceAmazonAMP(Source):
     def __init__(self):
         self.logger = init_logger("source_amazon_amp")
@@ -153,12 +155,10 @@ class SourceAmazonAMP(Source):
                 name="MetricNames",
                 json_schema={
                     "type": "object",
-                    "properties": {
-                        "metric_name": {"type": ["string", "null"]}
-                    },
+                    "properties": {"metric_name": {"type": ["string", "null"]}},
                     "additionalProperties": True,
                 },
-                supported_sync_modes=[SyncMode.full_refresh]
+                supported_sync_modes=[SyncMode.full_refresh],
             ),
             AirbyteStream(
                 name="Rules",
@@ -182,41 +182,33 @@ class SourceAmazonAMP(Source):
                         "evaluationTime": {"type": ["number", "null"]},
                         "labels": {
                             "type": ["object", "null"],
-                            "properties": {
-                                "severity": {"type": ["string", "null"]},
-                                "system": {"type": ["string", "null"]}
-                            },
-                            "additionalProperties": True
+                            "properties": {"severity": {"type": ["string", "null"]}, "system": {"type": ["string", "null"]}},
+                            "additionalProperties": True,
                         },
                         "annotations": {
                             "type": ["object", "null"],
                             "properties": {
                                 "description": {"type": ["string", "null"]},
                                 "runbook": {"type": ["string", "null"]},
-                                "summary": {"type": ["string", "null"]}
+                                "summary": {"type": ["string", "null"]},
                             },
-                            "additionalProperties": True
+                            "additionalProperties": True,
                         },
-                        "alerts": {
-                            "type": "array",
-                            "items": {"type": "object"}
-                        }
+                        "alerts": {"type": "array", "items": {"type": "object"}},
                     },
-                    "additionalProperties": True
+                    "additionalProperties": True,
                 },
                 supported_sync_modes=[SyncMode.full_refresh],
-            )
+            ),
         ]
         return AirbyteCatalog(streams=streams)
 
     def streams(self, config) -> list:
-        return [
-            MetricNamesStream(config),
-            RulesStream(config)
-        ]
+        return [MetricNamesStream(config), RulesStream(config)]
 
     def read(self, logger, config, configured_catalog, state=None):
         from datetime import datetime
+
         for configured_stream in configured_catalog.streams:
             stream_name = configured_stream.stream.name
             if stream_name == "MetricNames":
@@ -229,11 +221,7 @@ class SourceAmazonAMP(Source):
             for record in stream.read_records():
                 yield AirbyteMessage(
                     type=Type.RECORD,
-                    record=AirbyteRecordMessage(
-                        stream=stream_name,
-                        data=record,
-                        emitted_at=int(datetime.now().timestamp() * 1000)
-                    ),
+                    record=AirbyteRecordMessage(stream=stream_name, data=record, emitted_at=int(datetime.now().timestamp() * 1000)),
                 )
 
     def spec(self, *args, **kwargs) -> ConnectorSpecification:
@@ -245,42 +233,64 @@ class SourceAmazonAMP(Source):
                 "title": "Amazon AMP Source Spec",
                 "required": ["workspace_id", "region", "access_key", "secret_key"],
                 "properties": {
-                    "workspace_id": {
-                        "type": "string",
-                        "description": "ID of the AMP workspace",
-                        "title": "AMP Workspace ID",
-                        "order": 0
-                    },
+                    "workspace_id": {"type": "string", "description": "ID of the AMP workspace", "title": "AMP Workspace ID", "order": 0},
                     "region": {
                         "type": "string",
                         "enum": [
-                            "af-south-1", "ap-east-1", "ap-northeast-1", "ap-northeast-2", "ap-northeast-3",
-                            "ap-south-1", "ap-south-2", "ap-southeast-1", "ap-southeast-2", "ap-southeast-3", "ap-southeast-4",
-                            "ca-central-1", "ca-west-1", "cn-north-1", "cn-northwest-1",
-                            "eu-central-1", "eu-central-2", "eu-north-1", "eu-south-1", "eu-south-2",
-                            "eu-west-1", "eu-west-2", "eu-west-3", "il-central-1", "me-central-1", "me-south-1", "sa-east-1",
-                            "us-east-1", "us-east-2", "us-gov-east-1", "us-gov-west-1", "us-west-1", "us-west-2"
+                            "af-south-1",
+                            "ap-east-1",
+                            "ap-northeast-1",
+                            "ap-northeast-2",
+                            "ap-northeast-3",
+                            "ap-south-1",
+                            "ap-south-2",
+                            "ap-southeast-1",
+                            "ap-southeast-2",
+                            "ap-southeast-3",
+                            "ap-southeast-4",
+                            "ca-central-1",
+                            "ca-west-1",
+                            "cn-north-1",
+                            "cn-northwest-1",
+                            "eu-central-1",
+                            "eu-central-2",
+                            "eu-north-1",
+                            "eu-south-1",
+                            "eu-south-2",
+                            "eu-west-1",
+                            "eu-west-2",
+                            "eu-west-3",
+                            "il-central-1",
+                            "me-central-1",
+                            "me-south-1",
+                            "sa-east-1",
+                            "us-east-1",
+                            "us-east-2",
+                            "us-gov-east-1",
+                            "us-gov-west-1",
+                            "us-west-1",
+                            "us-west-2",
                         ],
                         "default": "eu-central-1",
                         "description": "AWS region where AMP is deployed",
                         "title": "AWS Region",
-                        "order": 1
+                        "order": 1,
                     },
                     "access_key": {
                         "type": "string",
                         "description": "The Access Key ID of the AWS IAM Role with AMP access",
                         "title": "AWS IAM Access Key ID",
                         "airbyte_secret": True,
-                        "order": 2
+                        "order": 2,
                     },
                     "secret_key": {
                         "type": "string",
                         "description": "The Secret Key of the AWS IAM Role with AMP access",
                         "title": "AWS IAM Secret Key",
                         "airbyte_secret": True,
-                        "order": 3
+                        "order": 3,
                     }
                 },
-                "additionalProperties": True
-            }
+                "additionalProperties": True,
+            },
         )
