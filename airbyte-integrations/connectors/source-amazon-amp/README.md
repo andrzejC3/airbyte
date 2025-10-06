@@ -28,7 +28,7 @@ Note that any directory named `secrets` is gitignored across the entire Airbyte 
 poetry run source-amazon-amp spec
 poetry run source-amazon-amp check --config secrets/config.json
 poetry run source-amazon-amp discover --config secrets/config.json
-poetry run source-amazon-amp read --config secrets/config.json --catalog integration_tests/configured_catalog.json
+poetry run source-amazon-amp read --config secrets/config.json --catalog integration_tests/catalog.json
 ```
 
 ### Running tests
@@ -56,6 +56,7 @@ Then run any of the connector commands as follows:
 docker run --rm airbyte/source-amazon-amp:dev spec
 docker run --rm -v $(pwd)/secrets:/secrets airbyte/source-amazon-amp:dev check --config /secrets/config.json
 docker run --rm -v $(pwd)/secrets:/secrets airbyte/source-amazon-amp:dev discover --config /secrets/config.json
+docker run --rm -v $(pwd)/secrets:/secrets -v $(pwd)/integration_tests:/integration_tests airbyte/source-amazon-sqs:dev read --config /secrets/config.json --catalog /integration_tests/catalog.json
 ```
 
 ### Running our CI test suite
