@@ -17,7 +17,7 @@ from airbyte_cdk.models import (
     ConnectorSpecification,
     Status,
     SyncMode,
-    Type
+    Type,
 )
 from airbyte_cdk.sources import Source
 
@@ -289,7 +289,7 @@ class SourceAmazonAMP(Source):
                         "title": "AWS IAM Secret Key",
                         "airbyte_secret": True,
                         "order": 3,
-                    }
+                    },
                 },
                 "additionalProperties": True,
             },
